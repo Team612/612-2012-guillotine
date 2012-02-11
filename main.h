@@ -27,8 +27,6 @@
 #include <RobotDrive.h>
 
 class robot_class : public IterativeRobot {
-private:
-    RobotDrive drive;
 public:
     //ctor
     robot_class();
@@ -50,10 +48,6 @@ public:
 
     //added methods
     void update_sensors();
-
 };
-
-typedef UINT32 uinteger;
-
 
 #endif

@@ -19,28 +19,28 @@
  * Implement robot_class to provide functionality for robot.
  */
 
+#include <Vision/ColorImage.h>
+#include "612.h"
 #include "main.h"
 #include "ports.h"
+#include "update.h"
+#include "vision/vision_processing.h"
+#include "state_tracker.h"
 
 //constructor - initialize drive
-robot_class::robot_class() :
-    drive (     left_front_motor.jag,  //KEEP THIS ORDER!  IT'S IMPORTANT!
-                left_rear_motor.jag,   //LF, LR, RF, RR -- see documentation
-                right_front_motor.jag, //for more details
-                right_rear_motor.jag
-    )
-{
+robot_class::robot_class() {
+    //do nothing
     GetWatchdog().SetEnabled(false); //we don't want Watchdog
-    //now set the necessary inversions
-    drive.SetInvertedMotor(left_front_motor.type,  left_front_motor.reverse);
-    drive.SetInvertedMotor(left_rear_motor.type,   left_rear_motor.reverse);
-    drive.SetInvertedMotor(right_front_motor.type, right_front_motor.reverse);
-    drive.SetInvertedMotor(right_rear_motor.type,  right_rear_motor.reverse);
 }
 
 void robot_class::RobotInit() {
     //Run-Time INIT
-    //do nothing
+    //set necessary inversions
+    drive.SetInvertedMotor(left_front_motor.type,  left_front_motor.reverse);
+    drive.SetInvertedMotor(left_rear_motor.type,   left_rear_motor.reverse);
+    drive.SetInvertedMotor(right_front_motor.type, right_front_motor.reverse);
+    drive.SetInvertedMotor(right_rear_motor.type,  right_rear_motor.reverse);
+    global_state.set_state(STATE_DRIVING);
 }
 
 void robot_class::DisabledInit() {
@@ -76,33 +76,60 @@ void robot_class::AutonomousContinuous() {
 }
 
 void robot_class::TeleopContinuous() {
-    //actually do something!! :D
-    if (left_joystick.GetRawButton(1)) {
-        //arcade drive
-        drive.ArcadeDrive(left_joystick); //arcade drive on left joystick
+    if(global_state.get_state() == STATE_DRIVING) {
+        if (left_joystick.GetRawButton(1)) {
+            //arcade drive
+            drive.ArcadeDrive(left_joystick); //arcade drive on left joystick
+        }
+        else {
+            //tank drive
+            float left = left_joystick.GetY();
+            float right = right_joystick.GetY();
+            //explicitly state drive power is based on Y axis of that side joy
+            drive.TankDrive(left, right);
+        }
+        if(left_joystick.GetRawButton(10)) {
+            printf("Switching state to RESTING\n");
+            global_state.set_state(STATE_RESTING);
+        } else if(left_joystick.GetRawButton(3)) {
+            global_state.set_state(STATE_AIMING);
+        }
     }
-    else {
-        //tank drive
-        float left = left_joystick.GetY();
-        float right = right_joystick.GetY();
-        //explicitly state drive power is based on Y axis of that side joy
-        drive.TankDrive(left, right);
+    else if(global_state.get_state() == STATE_RESTING) {
+        if(left_joystick.GetRawButton(11)) {
+            printf("Switching state to DRIVING\n");
+            global_state.set_state(STATE_DRIVING);
+        }
     }
-    /* //minibot
-    if (left_joystick.GetRawButton(6)) {        // button 6 on left  joystick move arm forward
-		minibot_jag.Set(0.2);
-	} else if (left_joystick.GetRawButton(7)) { // button 7 on right joystick move arm backward
-		minibot_jag.Set(-0.2);
-	} else {
-		minibot_jag.Set(0);
-	}
-    */
-    Wait(0.005); //let the CPU rest a little - 5 ms isn't too long
+    else if(global_state.get_state() == STATE_AIMING) {
+        // disable motor safety check to stop wasting netconsole space
+        drive.SetSafetyEnabled(false);
+        ColorImage* camera_image = vision_processing::get_image();
+        vector<double> target_degrees = vision_processing::get_degrees_from_image(camera_image);
+        vector<double> target_distances = vision_processing::get_distance_from_image(camera_image);
+//        printf("Angle (degrees) of camera: %f", target_degrees[vision_processing::determine_aim_target_from_image(vision_processing::get_image())]);
+        if(target_degrees.size() >= 1) {
+            printf("Angle (degrees) of camera: %f\n", target_degrees[0]);
+        }
+        else {
+            printf("No target detected\n");
+        }
+        if(target_distances.size() >= 1) {
+            printf("Distance of target:       %f\n", target_distances[0]);
+        }
+        if(!left_joystick.GetRawButton(3)) {
+            global_state.set_state(STATE_DRIVING);
+            drive.SetSafetyEnabled(true);
+        }
+    }
+    if(global_state.get_state() != STATE_AIMING) {
+        Wait(0.005); //let the CPU rest a little - 5 ms isn't too long
+    }
 }
 
 void robot_class::update_sensors() {
-    //update all sensor values
-    //currently, no sensors to update!
+    //run functions in update registry
+    registry().update();
 }
 
 //the following macro tells the library that we want to generate code

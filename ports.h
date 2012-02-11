@@ -26,6 +26,14 @@
 #include <RobotDrive.h>
 #include <Jaguar.h>
 #include <Joystick.h>
+#include <Encoder.h>
+#include <Ultrasonic.h>
+#include <DigitalInput.h>
+#include <Relay.h>
+#include <Servo.h>
+#include <AnalogChannel.h>
+#include <Vision/AxisCamera.h>
+#include "joysmooth.h"
 
 //bundle a reference to a Jaguar and some constants to aid in setting up the
 //robot's drivetrain.  Use this for jaguars that will be used in the RobotDrive
@@ -44,9 +52,10 @@ extern drive_jaguar left_front_motor;
 extern drive_jaguar right_front_motor;
 extern drive_jaguar left_rear_motor;
 extern drive_jaguar right_rear_motor;
-extern Jaguar       minibot_jag;
 
 //DIOs
+extern Encoder right_drive;
+extern Encoder left_drive;
 
 //AIOs
 
@@ -56,5 +65,14 @@ extern Jaguar       minibot_jag;
 extern Joystick left_joystick;
 extern Joystick right_joystick;
 extern Joystick gunner_joystick;
+
+extern const char * cameraIP;
+
+static inline AxisCamera& camera() {
+    return AxisCamera::GetInstance(cameraIP);
+}
+
+//Virtual Devices
+extern RobotDrive drive;
 
 #endif
