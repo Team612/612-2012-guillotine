@@ -22,7 +22,16 @@
 #ifndef VISIONALG_H_INC
 #define VISIONALG_H_INC
 
+#define AXIS_CAMERA_206
+//#define AXIS_CAMERA_M1011
+
+//#define RESOLUTION_640_480
+#define RESOLUTION_320_240
+//#define RESOLUTION_160_120
+
 double angle_offset(int, int, double); //offset, total, FOV
+
+void init_camera();
 
 class aspect_ratio {
 private:

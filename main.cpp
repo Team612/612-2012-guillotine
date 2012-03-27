@@ -19,13 +19,14 @@
  * Implement robot_class to provide functionality for robot.
  */
 
-#include <Vision/ColorImage.h>
 #include "612.h"
 #include "main.h"
 #include "ports.h"
 #include "update.h"
 #include "vision/vision_processing.h"
 #include "state_tracker.h"
+#include "visionalg.h"
+#include "encoder.h"
 
 //constructor - initialize drive
 robot_class::robot_class() {
@@ -41,6 +42,8 @@ void robot_class::RobotInit() {
     drive.SetInvertedMotor(right_front_motor.type, right_front_motor.reverse);
     drive.SetInvertedMotor(right_rear_motor.type,  right_rear_motor.reverse);
     global_state.set_state(STATE_DRIVING);
+    EncoderWheels::Init(left_drive, right_drive, left_front_motor, right_front_motor, left_rear_motor, right_rear_motor);
+//    init_camera();
 }
 
 void robot_class::DisabledInit() {
@@ -88,26 +91,17 @@ void robot_class::TeleopContinuous() {
             //explicitly state drive power is based on Y axis of that side joy
             drive.TankDrive(left, right);
         }
-        if(left_joystick.GetRawButton(10)) {
-            printf("Switching state to RESTING\n");
-            global_state.set_state(STATE_RESTING);
-        } else if(left_joystick.GetRawButton(3)) {
-            global_state.set_state(STATE_AIMING);
+        if(left_joystick.GetRawButton(3)) {
+            global_state.set_state(STATE_SHOOTING);
         }
+        std::printf("current distance (encoders): %f\n", EncoderWheels::GetInstance().GetCurDistance(EncoderWheels::DISTANCE_AVG));
     }
-    else if(global_state.get_state() == STATE_RESTING) {
-        if(left_joystick.GetRawButton(11)) {
-            printf("Switching state to DRIVING\n");
-            global_state.set_state(STATE_DRIVING);
-        }
-    }
-    else if(global_state.get_state() == STATE_AIMING) {
+    else if(global_state.get_state() == STATE_SHOOTING) {
         // disable motor safety check to stop wasting netconsole space
         drive.SetSafetyEnabled(false);
-        ColorImage* camera_image = vision_processing::get_image();
-        vector<double> target_degrees = vision_processing::get_degrees_from_image(camera_image);
-        vector<double> target_distances = vision_processing::get_distance_from_image(camera_image);
-//        printf("Angle (degrees) of camera: %f", target_degrees[vision_processing::determine_aim_target_from_image(vision_processing::get_image())]);
+        vision_processing::update();
+        vector<double> target_degrees = vision_processing::get_degrees();
+        vector<double> target_distances = vision_processing::get_distance();
         if(target_degrees.size() >= 1) {
             printf("Angle (degrees) of camera: %f\n", target_degrees[0]);
         }
@@ -117,12 +111,17 @@ void robot_class::TeleopContinuous() {
         if(target_distances.size() >= 1) {
             printf("Distance of target:       %f\n", target_distances[0]);
         }
+        if(left_joystick.GetRawButton(2)) {
+            camera().WriteWhiteBalance(AxisCameraParams::kWhiteBalance_FixedFlourescent1);
+        } else {
+            camera().WriteWhiteBalance(AxisCameraParams::kWhiteBalance_Automatic);
+        }
         if(!left_joystick.GetRawButton(3)) {
             global_state.set_state(STATE_DRIVING);
             drive.SetSafetyEnabled(true);
         }
     }
-    if(global_state.get_state() != STATE_AIMING) {
+    if(global_state.get_state() != STATE_SHOOTING) {
         Wait(0.005); //let the CPU rest a little - 5 ms isn't too long
     }
 }

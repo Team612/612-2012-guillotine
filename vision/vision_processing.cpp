@@ -28,10 +28,13 @@
 #include <Vision/ColorImage.h>
 #include <Vision/BinaryImage.h>
 #include <Vision2009/VisionAPI.h>
+#include <nivision.h>
+
 #include "vision_processing.h"
 #include "../ports.h"
 #include "../ranges.h"
 #include "../trajectory.h"
+#include "../visionalg.h"
 
 using namespace vision_processing;
 
@@ -45,136 +48,131 @@ typedef struct particle_rect_struct {
 //constants
 HSLImage old_image;
 
+BinaryImage* image_mask;
+vector<ParticleAnalysisReport>* targets;
+
+BinaryImage* get_image_mask(ColorImage*);
+vector<ParticleAnalysisReport>* get_image_targets(BinaryImage*);
+
 double inline degrees_from_ratio(double); // ratio: width/height
 double inline radians_from_ratio(double);
 double inline distance_from_height(int);
 double inline deviation_from_angle(double);
-particle_rect inline get_bounding_box(ParticleAnalysisReport);
 
 ColorImage* vision_processing::get_image() {
-    if(camera().IsFreshImage()) {
-        camera().GetImage(&old_image);
-    } 
-    return get_old_image();
+    camera().GetImage(&old_image);
+    return &old_image;
 }
 
 ColorImage* vision_processing::get_old_image() {
     return &old_image;
 }
 
-BinaryImage* vision_processing::get_image_mask(ColorImage* image) {
-    BinaryImage* imageMask;
-    if(image == NULL) {
-        return imageMask;
-    }
-    if (COLOR_MODE == HSV) {
-        imageMask = image->ThresholdHSV(HSV_HMIN, HSV_HMAX, HSV_SMIN, HSV_SMAX, HSV_VMIN, HSV_VMAX);
-    }
-    else if(COLOR_MODE == HSI) {
-        imageMask = image->ThresholdHSI(HSI_HMIN, HSI_HMAX, HSI_SMIN, HSI_SMAX, HSI_IMIN, HSI_IMAX);
-    }
-    else { // HSL is implied (not assumed)
-        imageMask = image->ThresholdHSL(HSL_HMIN, HSL_HMAX, HSL_SMIN, HSL_SMAX, HSL_LMIN, HSL_LMAX);
-    }
-    return imageMask;
-}
-
-vector<ParticleAnalysisReport> vision_processing::get_image_targets(BinaryImage* image) {
-    vector<ParticleAnalysisReport> targets;
-    if(image == NULL) {
-        return targets;
-    }
-//    printf("DEBUG: number of particles: %d",image->GetNumberParticles());
-    vector<ParticleAnalysisReport>* particles=image->GetOrderedParticleAnalysisReports();
-    for(unsigned int i = 0; i < particles->size(); i++) {
-        ParticleAnalysisReport particle = particles->at(i);
-        double particle_area = particle.particleArea;
-        if(particle_area > PARTICLE_AREA_MIN && particle_area <= PARTICLE_AREA_MAX) {
-            if(targets.size() >= 4) {
-                // TODO change min and max
-                //      call function again
-                //      if depth is more than 2
-                //      explode
-                break;
-            }
-            targets.push_back(particle);
-        }
-    }
-    return targets;
-}
-
-unsigned int vision_processing::determine_aim_target_from_image(ColorImage* image) {
-    if(image == NULL) {
-        return 0;
-    }
-    return determine_aim_target(get_image_targets(get_image_mask(image)));
-}
-
-unsigned int vision_processing::determine_aim_target(vector<ParticleAnalysisReport>) {
+unsigned int vision_processing::determine_aim_target() {
     // TODO make it do stuff
     return 0;
 }
 
 vector<double> vision_processing::get_distance() {
-    return get_distance_from_image(get_image());
-}
-
-vector<double> vision_processing::get_distance_from_image(ColorImage* image) {
-    BinaryImage* image_mask = get_image_mask(image);
-    vector<ParticleAnalysisReport> targets = get_image_targets(image_mask);
     vector<double> distance;
-    if(image == NULL) {
-        return distance;
-    }
-    for(unsigned int i = 0; i < targets.size(); i++) {
-        ParticleAnalysisReport target = targets[i];
-        particle_rect target_rect=get_bounding_box(target);
-        int height = target_rect.height;
-        int width = target_rect.width;
-        double ratio = 1.0 * width/height;
-        double image_degrees = degrees_from_ratio(ratio);
-		double ground_distance = distance_from_height(height) + deviation_from_angle(image_degrees);
-        distance.push_back(ground_distance);
+    for (unsigned int i = 0; i < targets->size(); i++) {
+        distance.push_back(get_distance_from_report(targets->at(i)));
     }
     return distance;
 }
 
 vector<double> vision_processing::get_degrees() {
-    return get_degrees_from_image(get_image());
-}
-
-vector<double> vision_processing::get_degrees_from_image(ColorImage* image) {
-    vector<ParticleAnalysisReport> targets = get_image_targets(get_image_mask(image));
     vector<double> degrees;
-    if(image == NULL) {
-        return degrees;
-    }
-    for(unsigned int i = 0; i < targets.size(); i++) {
-        ParticleAnalysisReport target = targets[i];
-        particle_rect target_rect=get_bounding_box(target);
-        int height = target_rect.height;
-        int width = target_rect.width;
-        double ratio = 1.0 * width/height;
-        double image_degrees = degrees_from_ratio(ratio);
-        degrees.push_back(image_degrees);
+    for (unsigned int i = 0; i < targets->size(); i++) {
+        degrees.push_back(get_degrees_from_report(targets->at(i)));
     }
     return degrees;
 }
 
-vector<double> vision_processing::get_radians_from_image(ColorImage* image) {
-    vector<double> degrees = get_degrees_from_image(image);
+vector<double> vision_processing::get_radians() {
+    vector<double> degrees = get_degrees();
     vector<double> radians;
-    if(image == NULL) {
-        return radians;
-    }
     for(unsigned int i = 0; i< degrees.size(); i++) {
         radians.push_back(deg2rad(degrees[i]));
     }
     return radians;
 }
 
+BinaryImage* get_image_mask(ColorImage* image) {
+    if(image == NULL) {
+        return image_mask;
+    }
+    if (COLOR_MODE == HSV) {
+        image_mask = image->ThresholdHSV(HSV_HMIN, HSV_HMAX, HSV_SMIN, HSV_SMAX, HSV_VMIN, HSV_VMAX);
+    }
+    else if(COLOR_MODE == HSI) {
+        image_mask = image->ThresholdHSI(HSI_HMIN, HSI_HMAX, HSI_SMIN, HSI_SMAX, HSI_IMIN, HSI_IMAX);
+    }
+    else { // HSL is implied (not assumed)
+        image_mask = image->ThresholdHSL(HSL_HMIN, HSL_HMAX, HSL_SMIN, HSL_SMAX, HSL_LMIN, HSL_LMAX);
+    }
+    return image_mask;
+}
+
+vector<ParticleAnalysisReport>* get_image_targets(BinaryImage* image) {
+    vector<ParticleAnalysisReport>* targets = new vector<ParticleAnalysisReport>();
+    if(image == NULL) {
+        return targets;
+    }
+    vector<ParticleAnalysisReport>* particles=image->GetOrderedParticleAnalysisReports();
+    for(unsigned int i = 0; i < particles->size(); i++) {
+        ParticleAnalysisReport particle = particles->at(i);
+        double particle_area = particle.particleArea;
+        if(particle_area > PARTICLE_AREA_MIN && particle_area <= PARTICLE_AREA_MAX) {
+            if(targets->size() >= 4) {
+                // TODO change min and max
+                //      call function again
+                //      if depth is more than 2
+                //      explode
+                break;
+            }
+            targets->push_back(particle);
+        }
+    }
+    delete particles;
+    return targets;
+}
+
+void vision_processing::update() {
+    if(!camera().IsFreshImage()) {
+        return;
+    }
+    delete image_mask;
+    image_mask = get_image_mask(&old_image);
+    delete targets;
+    targets = get_image_targets(image_mask);
+}
+
+//TODO: Someone else (Jeff?) sanity check this and make sure it's right.  I tried to copy your logic
+//from above.
+double vision_processing::get_distance_from_report(const ParticleAnalysisReport& report) {
+    double ratio = ((double)(report.boundingRect.width))/(report.boundingRect.height);
+    double degrees = degrees_from_ratio(ratio);
+    double dist = distance_from_height(report.boundingRect.height) + deviation_from_angle(degrees);
+    return dist;
+}
+
+double vision_processing::get_degrees_from_report(const ParticleAnalysisReport& r) {
+    double ratio = ((double)(r.boundingRect.width))/(r.boundingRect.height);
+    return degrees_from_ratio(ratio);
+}
+
+double vision_processing::get_height_offset_from_report(const ParticleAnalysisReport& r, double dist) {
+    //meant to be called once you have dist from get_distance_from_report
+    //this way we don't need to have target detection
+    double theta = angle_offset(RESOLUTION().Y()/2 - r.center_mass_y, RESOLUTION().Y(), FOV().Y()); 
+    return std::tan(theta)*dist;
+}
+
 double inline degrees_from_ratio(double ratio) {
-    return (-94.637 * pow(ratio, 2)) + (119.86 * ratio) + 9.7745;
+    //a quadratic regression.  Fits rather well.
+    //aspect ratio is constant 4:3, so no need to adjust ratio
+    return (-94.637 * ratio * ratio) + (119.86 * ratio) + 9.7745;
 }
 
 double inline radians_from_ratio(double ratio) {
@@ -182,13 +180,18 @@ double inline radians_from_ratio(double ratio) {
 }
 
 double inline distance_from_height(int height) {
-	return ((1277.686246075*(1/height)) - 0.8265433113);
+    //magic numbers are gross but they do the job...
+    //a tad worried about the -0.8.  Not sure what this will do at close distances
+#ifdef RESOLUTION_640_480
+    //no need to do anything
+#elif defined RESOLUTION_320_240
+    height *= 2; //adjust for resolution
+#elif defined RESOLUTION_160_120
+    height *= 4;
+#endif
+    return ((1277.686246075*(1/height)) - 0.8265433113);
 }
 
 double inline deviation_from_angle(double angle) {
-	return ((-0.00005*(pow(angle,2))) +(0.0208*angle) + 0.0046);
-}
-
-particle_rect inline get_bounding_box(ParticleAnalysisReport particle) {
-    return *((particle_rect*)&particle.boundingRect);
+    return ((0.0188*angle) + 0.017);
 }
