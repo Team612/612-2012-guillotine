@@ -55,7 +55,7 @@ const char * cameraIP = "10.6.12.11"; //static IP, camera configured for connect
 //PORTS TABLE
 
 //PWMs                                    SLOT     PORT
-Jaguar right_front_jag                  ( slot2,     5 );
+Jaguar right_front_jag                  ( slot2,     1 );
 Jaguar right_rear_jag                   ( slot2,     2 );
 Jaguar left_front_jag                   ( slot2,     4 );
 Jaguar left_rear_jag                    ( slot2,     3 );
@@ -67,10 +67,10 @@ Jaguar left_rear_jag                    ( slot2,     3 );
 
 //note: for two channel encoders, we need to specify a slot for both ports
 //DIOs                                    SLOT     PORT
-Encoder right_drive                     ( slot2,     3,
-                                          slot2,     4 );
-Encoder left_drive                      ( slot2,     1,
+Encoder right_drive                     ( slot2,     1,
                                           slot2,     2 );
+Encoder left_drive                      ( slot2,     4,
+                                          slot2,     5 );
                                           
 //note: since we rely on the default value of kInches for the 5th arg
 //we should use Ultrasonic::GetRangeInches().

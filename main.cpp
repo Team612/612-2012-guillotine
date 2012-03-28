@@ -42,7 +42,8 @@ void robot_class::RobotInit() {
     drive.SetInvertedMotor(right_front_motor.type, right_front_motor.reverse);
     drive.SetInvertedMotor(right_rear_motor.type,  right_rear_motor.reverse);
     global_state.set_state(STATE_DRIVING);
-    EncoderWheels::Init(left_drive, right_drive, left_front_motor, right_front_motor, left_rear_motor, right_rear_motor);
+    EncoderWheels::Init(left_drive, right_drive, left_front_motor.jag, right_front_motor.jag, left_rear_motor.jag, right_rear_motor.jag);
+    EncoderWheels::GetInstance().Enable();
 //    init_camera();
 }
 
@@ -85,16 +86,23 @@ void robot_class::TeleopContinuous() {
             drive.ArcadeDrive(left_joystick); //arcade drive on left joystick
         }
         else {
-            //tank drive
+/*            //tank drive
             float left = left_joystick.GetY();
             float right = right_joystick.GetY();
             //explicitly state drive power is based on Y axis of that side joy
-            drive.TankDrive(left, right);
+            drive.TankDrive(left, right);*/
         }
-        if(left_joystick.GetRawButton(3)) {
+/*        if(left_joystick.GetRawButton(3)) {
             global_state.set_state(STATE_SHOOTING);
-        }
+        }*/
         std::printf("current distance (encoders): %f\n", EncoderWheels::GetInstance().GetCurDistance(EncoderWheels::DISTANCE_AVG));
+        if(left_joystick.GetRawButton(6)) {
+            EncoderWheels::GetInstance().Disable();
+            EncoderWheels::GetInstance().Enable();
+        }
+        else if(left_joystick.GetRawButton(7)){
+            EncoderWheels::GetInstance().SetDistance(12);
+        }
     }
     else if(global_state.get_state() == STATE_SHOOTING) {
         // disable motor safety check to stop wasting netconsole space
